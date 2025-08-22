@@ -4,7 +4,8 @@ import { getCustomRepository, getRepository, In } from 'typeorm';
 import Transaction from '../models/Transaction';
 import TransactionsRepository from '../repositories/TransactionsRepository';
 import Category from '../models/Category';
-
+import path from 'path';
+import uploadConfig from '../config/upload';
 interface CVSTransaction {
   title: string;
   type: 'income' | 'outcome';
@@ -19,7 +20,14 @@ class ImportTransactionsService {
     const transactionsRepository = getCustomRepository(TransactionsRepository);
     const categoriesRepository = getRepository(Category);
 
-    const readCSVStream = fs.createReadStream(filePath);
+    // Normalize and validate the filePath to ensure it is inside the uploads directory
+    const uploadsDir = path.resolve(uploadConfig.directory || uploadConfig.dest || ''); // fallback if uploadConfig.directory not defined
+    const resolvedFilePath = path.resolve(filePath);
+    if (!resolvedFilePath.startsWith(uploadsDir)) {
+      throw new Error('Invalid file path');
+    }
+
+    const readCSVStream = fs.createReadStream(resolvedFilePath);
 
     const parseStream = csvParse({
       from_line: 2,
@@ -99,7 +107,7 @@ class ImportTransactionsService {
     await transactionsRepository.save(createdTransactions);
 
     // Excluir o arquivo
-    await fs.promises.unlink(filePath);
+    await fs.promises.unlink(resolvedFilePath);
 
     return createdTransactions;
   }
